@@ -34,13 +34,14 @@
 #include <environment.h>
 #include <linux/stddef.h>
 #include <malloc.h>
+#include <tinf.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
-#if ((CONFIG_COMMANDS & (CFG_CMD_ENV | CFG_CMD_FLASH)) == (CFG_CMD_ENV | CFG_CMD_FLASH))
+#if defined(CONFIG_CMD_ENV) && defined(CONFIG_CMD_FLASH)
 	#define CMD_SAVEENV
 #elif defined(CFG_ENV_ADDR_REDUND)
-	#error Cannot use CFG_ENV_ADDR_REDUND without CFG_CMD_ENV & CFG_CMD_FLASH
+	#error Cannot use CFG_ENV_ADDR_REDUND without CONFIG_CMD_ENV & CONFIG_CMD_FLASH
 #endif
 
 #if defined(CFG_ENV_SIZE_REDUND) && (CFG_ENV_SIZE_REDUND < CFG_ENV_SIZE)
@@ -99,8 +100,8 @@ int env_init(void){
 	ulong addr1 = (ulong)&(flash_addr->data);
 	ulong addr2 = (ulong)&(flash_addr_new->data);
 
-	crc1_ok = (crc32(0, flash_addr->data, ENV_SIZE) == flash_addr->crc);
-	crc2_ok = (crc32(0, flash_addr_new->data, ENV_SIZE) == flash_addr_new->crc);
+	crc1_ok = (tinf_crc32(flash_addr->data, ENV_SIZE) == flash_addr->crc);
+	crc2_ok = (tinf_crc32(flash_addr_new->data, ENV_SIZE) == flash_addr_new->crc);
 
 	if(crc1_ok && !crc2_ok){
 		gd->env_addr  = addr1;
@@ -143,7 +144,7 @@ int saveenv(void){
 
 	if(up_data){
 		if((saved_data = malloc(up_data)) == NULL){
-			printf("## Error: unable to save the rest of sector (%ld)\n", up_data);
+			printf_err("unable to save the rest of sector (%ld)\n", up_data);
 			goto Done;
 		}
 
@@ -193,7 +194,7 @@ Done:
 
 #else /* ! CFG_ENV_ADDR_REDUND */
 int env_init(void){
-	if(crc32(0, env_ptr->data, ENV_SIZE) == env_ptr->crc){
+	if(tinf_crc32(env_ptr->data, ENV_SIZE) == env_ptr->crc){
 		gd->env_addr = (ulong)&(env_ptr->data);
 		gd->env_valid = 1;
 
@@ -235,7 +236,7 @@ int saveenv(void){
 #else
 	flash_sect_addr = (ulong)flash_addr;
 	len = CFG_ENV_SIZE;
-#endif	/* CFG_ENV_SECT_SIZE */
+#endif /* CFG_ENV_SECT_SIZE */
 
 	end_addr = flash_sect_addr + len - 1;
 
@@ -273,7 +274,7 @@ void env_relocate_spec(void){
 		end_addr_new = ltmp;
 	}
 
-	if(flash_addr_new->flags != OBSOLETE_FLAG && crc32(0, flash_addr_new->data, ENV_SIZE) == flash_addr_new->crc){
+	if(flash_addr_new->flags != OBSOLETE_FLAG && tinf_crc32(flash_addr_new->data, ENV_SIZE) == flash_addr_new->crc){
 		char flag = OBSOLETE_FLAG;
 
 		gd->env_valid = 2;
@@ -290,7 +291,7 @@ void env_relocate_spec(void){
 	}
 
 	if(gd->env_valid == 2){
-		puts("** Warning: some problems detected reading environment, recovered successfully\n");
+		printf_wrn("some problems detected reading environment, recovered successfully\n");
 	}
 	#endif /* CFG_ENV_ADDR_REDUND */
 
